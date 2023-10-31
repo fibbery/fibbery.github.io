@@ -1,0 +1,974 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Fibbery">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="聊一聊golang如何实现系统调用的">
+<meta property="og:type" content="article">
+<meta property="og:title" content="golang中的系统调用">
+<meta property="og:url" content="https://fibbery.github.io/2022/07/27/golang%E4%B8%AD%E7%9A%84%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/index.html">
+<meta property="og:site_name" content="小笔记本">
+<meta property="og:description" content="聊一聊golang如何实现系统调用的">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://fibbery.github.io/images/golang.webp">
+<meta property="article:published_time" content="2022-07-27T02:53:13.000Z">
+<meta property="article:modified_time" content="2023-10-30T03:55:44.762Z">
+<meta property="article:author" content="Fibbery">
+<meta property="article:tag" content="golang">
+<meta property="article:tag" content="syscall">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://fibbery.github.io/images/golang.webp">
+  
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
+  
+  
+  <title>golang中的系统调用 - 小笔记本</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/prism/1.27.0/plugins/line-numbers/prism-line-numbers.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"fibbery.github.io","root":"/","version":"1.9.2","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.2.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>小笔记本</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/images/banner.webp') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="golang中的系统调用"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-07-27 10:53" pubdate>
+          2022年7月27日 上午
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          7.8k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          65 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">golang中的系统调用</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <h2 id="什么是系统调用"><a href="#什么是系统调用" class="headerlink" title="什么是系统调用"></a>什么是系统调用</h2><div class="note note-info">
+            <p>In computing, a system call (commonly abbreviated to syscall) is the programmatic way in which a computer program requests a service from the kernel of the operating system on which it is executed. This may include hardware-related services (for example, accessing a hard disk drive or accessing the device’s camera), creation and execution of new processes, and communication with integral kernel services such as process scheduling. System calls provide an essential interface between a process and the operating system.</p>
+          </div> 
+
+<p>以上是维基百科上关于<a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/System_call">系统调用</a>的介绍，实际概括一句话就是: 运行在用户空间的程序向内核请求调用需要更高权限的服务，诸如一些：</p>
+<ol>
+<li>进程控制</li>
+<li>文件管理</li>
+<li>硬件设备管理</li>
+<li>一些系统信息的管理</li>
+<li>通信管理</li>
+<li>权限管理</li>
+</ol>
+<h2 id="Golang中是如何做系统调用的"><a href="#Golang中是如何做系统调用的" class="headerlink" title="Golang中是如何做系统调用的"></a>Golang中是如何做系统调用的</h2><div class="note note-primary">
+            <p>golang 调试环境<br>version： 1.16.15<br>os: linux<br>arch: amd64</p>
+          </div>
+<p>golang中系统调用主要分成两部分实现，分别在syscall包中和runtime包里。syscall中暴露的一些系统调用的接口，都是直接提供给用户程序使用的。runtime包中则是供内部使用的，对用户程序不可见的。</p>
+<p>实际上golang中，系统调用随处可见，就拿我们常用的fmt.println来说，最下层就是调用的syscall.Write。</p>
+<h3 id="syscall包分析"><a href="#syscall包分析" class="headerlink" title="syscall包分析"></a>syscall包分析</h3><p>syscall包里主要分为两种文件：</p>
+<ul>
+<li>不同操作系统对应的操作文件, 例如：<a target="_blank" rel="noopener" href="https://cs.opensource.google/go/go/+/refs/tags/go1.16.15:src/syscall/syscall_linux.go">syscall_linux.go</a></li>
+<li>自动生成的接口文件, 例如: <a target="_blank" rel="noopener" href="https://cs.opensource.google/go/go/+/master:src/cmd/vendor/golang.org/x/sys/unix/zsyscall_linux.go;l=1?q=zsyscall_linux&sq=&ss=go/go">zsyscall_linux.go</a></li>
+</ul>
+<p>syscall_linux.go文件中会有很多注释：</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">&#x2F;&#x2F;sys	Acct(path string) (err error)
+&#x2F;&#x2F;sys	Adjtimex(buf *Timex) (state int, err error)
+&#x2F;&#x2F;sys	Chdir(path string) (err error)
+&#x2F;&#x2F;sys	Chroot(path string) (err error)
+&#x2F;&#x2F;sys	Close(fd int) (err error)
+&#x2F;&#x2F;sys	Dup(oldfd int) (fd int, err error)
+&#x2F;&#x2F;sys	Dup3(oldfd int, newfd int, flags int) (err error)
+&#x2F;&#x2F;sysnb	EpollCreate1(flag int) (fd int, err error)
+&#x2F;&#x2F;sysnb	EpollCtl(epfd int, op int, fd int, event *EpollEvent) (err error)<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>根据这些注释，mksyscall.pl 脚本会生成对应的平台的具体实现。(mksyscall.pl 是一段 perl 脚本)。</p>
+<p>我们可以发现，注释中包含两种前缀：sys 和 sysnb (nb其实就是non-blocking的意思)。我们可以从上文所述的perl脚本中窥见两种的大体上区别。</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none"># A line beginning with &#x2F;&#x2F;sysnb is like &#x2F;&#x2F;sys, except that the
+# goroutine will not be suspended during the execution of the system
+# call.  This must only be used for system calls which can never
+# block, as otherwise the system call could cause all goroutines to
+# hang.<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>大致意思就是，非阻塞的调用是在执行过程中对应的goroutine是不会挂起的。通常使用非阻塞系统调用，是不能有阻塞情况的，否则可能导致所有挂载在当前P的本地协程队列全部挂起。</p>
+<p>由此，我们可以知道，实际上系统调用是分为了两种:</p>
+<ol>
+<li>阻塞调用</li>
+<li>非阻塞调用</li>
+</ol>
+<p>还有的说有一种wrapper系统调用，实际上是对上面两种调用进行一点包裹，减少点参数传递或者换个调用名字，实际还是囊括在上面两种范围内。</p>
+<h3 id="系统调用实现分析"><a href="#系统调用实现分析" class="headerlink" title="系统调用实现分析"></a>系统调用实现分析</h3><p>实际上，我们发现，syscall_linux.go中所有的系统调用实现最终都是套用以下几个接口实现的</p>
+<img src="/2022/07/27/golang%E4%B8%AD%E7%9A%84%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/syscall_interface.png" srcset="/img/loading.gif" lazyload class="" title="syscall_interface">
+
+<p>其中，Syscall和Syscall6的区别只在于传入参数的多少(RawSyscall和RawSyscall6区别也在于此)。上文我们有说过有两种调用，实际代码可以看出来，阻塞调用实际最后调用的是Syscall，非阻塞调用使用的是RawSyscall。</p>
+<p>这部分方法实现是直接用汇编处理的，我们可以在类似<a target="_blank" rel="noopener" href="https://cs.opensource.google/go/go/+/refs/tags/go1.16.15:src/syscall/asm_linux_amd64.s">asm_linux_amd64.s</a>文件中找到具体实现。</p>
+<p>其中，Syscall实现如下:</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">// func Syscall(trap int64, a1, a2, a3 uintptr) (r1, r2, err uintptr);</span>
+<span class="token comment">// Trap # in AX, args in DI SI DX R10 R8 R9, return in AX DX</span>
+<span class="token comment">// Note that this differs from "standard" ABI convention, which</span>
+<span class="token comment">// would pass 4th arg in CX, not R10.</span>
+
+TEXT ·<span class="token function">Syscall</span><span class="token punctuation">(</span>SB<span class="token punctuation">)</span><span class="token punctuation">,</span>NOSPLIT<span class="token punctuation">,</span>$<span class="token number">0</span><span class="token operator">-</span><span class="token number">56</span>
+	CALL	runtime·<span class="token function">entersyscall</span><span class="token punctuation">(</span>SB<span class="token punctuation">)</span>
+	MOVQ	a1<span class="token operator">+</span><span class="token function">8</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span><span class="token punctuation">,</span> DI
+	MOVQ	a2<span class="token operator">+</span><span class="token function">16</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span><span class="token punctuation">,</span> SI
+	MOVQ	a3<span class="token operator">+</span><span class="token function">24</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span><span class="token punctuation">,</span> DX
+	MOVQ	trap<span class="token operator">+</span><span class="token function">0</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span><span class="token punctuation">,</span> AX	<span class="token comment">// syscall entry</span>
+	SYSCALL
+	CMPQ	AX<span class="token punctuation">,</span> $<span class="token number">0xfffffffffffff001</span>
+	JLS	ok
+	MOVQ	$<span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span> r1<span class="token operator">+</span><span class="token function">32</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	MOVQ	$<span class="token number">0</span><span class="token punctuation">,</span> r2<span class="token operator">+</span><span class="token function">40</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	NEGQ	AX
+	MOVQ	AX<span class="token punctuation">,</span> err<span class="token operator">+</span><span class="token function">48</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	CALL	runtime·<span class="token function">exitsyscall</span><span class="token punctuation">(</span>SB<span class="token punctuation">)</span>
+	RET
+ok<span class="token punctuation">:</span>
+	MOVQ	AX<span class="token punctuation">,</span> r1<span class="token operator">+</span><span class="token function">32</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	MOVQ	DX<span class="token punctuation">,</span> r2<span class="token operator">+</span><span class="token function">40</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	MOVQ	$<span class="token number">0</span><span class="token punctuation">,</span> err<span class="token operator">+</span><span class="token function">48</span><span class="token punctuation">(</span>FP<span class="token punctuation">)</span>
+	CALL	runtime·<span class="token function">exitsyscall</span><span class="token punctuation">(</span>SB<span class="token punctuation">)</span>
+	RET<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>RawSyscall调用如下:</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">&#x2F;&#x2F; func RawSyscall(trap, a1, a2, a3 uintptr) (r1, r2, err uintptr)
+TEXT ·RawSyscall(SB),NOSPLIT,$0-56
+	MOVQ	a1+8(FP), DI
+	MOVQ	a2+16(FP), SI
+	MOVQ	a3+24(FP), DX
+	MOVQ	trap+0(FP), AX	&#x2F;&#x2F; syscall entry
+	SYSCALL
+	CMPQ	AX, $0xfffffffffffff001
+	JLS	ok1
+	MOVQ	$-1, r1+32(FP)
+	MOVQ	$0, r2+40(FP)
+	NEGQ	AX
+	MOVQ	AX, err+48(FP)
+	RET
+ok1:
+	MOVQ	AX, r1+32(FP)
+	MOVQ	DX, r2+40(FP)
+	MOVQ	$0, err+48(FP)
+	RET<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>我们只要在汇编中把参数依次传入寄存器，并调用 SYSCALL 指令即可进入内核处理逻辑，系统调用执行完毕之后，返回值存储在AX和DX中。大致如下：</p>
+<table>
+<thead>
+<tr>
+<th>DI</th>
+<th>SI</th>
+<th>DX</th>
+<th>R10</th>
+<th>R9</th>
+<th>R8</th>
+<th>AX</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>参数1</td>
+<td>参数2</td>
+<td>参数3&#x2F;返回值</td>
+<td>参数4</td>
+<td>参数5</td>
+<td>参数6</td>
+<td>调用指令&#x2F;返回值</td>
+</tr>
+</tbody></table>
+<div class="note note-info">
+            <p>golang使用的是plan9汇编，和IA64名字上存在映射关系，大致映射规则是少了一个R前缀。例如DI代表中RDI。<br>同时，plan9引入了四个伪寄存器：FP、PC、SB、SP，可以参见<a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000039978109">plan9 assembly解析</a>大致了解一下</p>
+          </div>
+
+<p>上面代码也可以看出来，RawSyscall相较于Syscall只是少了开始的runtime·entersyscall以及执行完调用之后的runtime·exitsyscall。</p>
+<p>接下来，我们来看看这两处方法到底执行了什么</p>
+<h3 id="runtime-syscallenter"><a href="#runtime-syscallenter" class="headerlink" title="runtime.syscallenter"></a>runtime.syscallenter</h3><figure><div class="code-wrapper"><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">reentersyscall</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp <span class="token builtin">uintptr</span><span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+	_g_ <span class="token operator">:=</span> <span class="token function">getg</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	_g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>locks<span class="token operator">++</span>    <span class="token comment">// 防止M被抢占式调度使用</span>
+
+	<span class="token comment">// 捕获可能发生的调用，将堆栈保护替换为使任何堆栈检查失败的内容，留一个标志通知newstack终止</span>
+	_g_<span class="token punctuation">.</span>stackguard0 <span class="token operator">=</span> stackPreempt
+	_g_<span class="token punctuation">.</span>throwsplit <span class="token operator">=</span> <span class="token boolean">true</span>
+
+	<span class="token comment">// 保留当前执行现场，方便后续复原</span>
+	<span class="token function">save</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp<span class="token punctuation">)</span>
+	_g_<span class="token punctuation">.</span>syscallsp <span class="token operator">=</span> sp
+	_g_<span class="token punctuation">.</span>syscallpc <span class="token operator">=</span> pc
+        <span class="token comment">// 设置当前状态为_Gsyscall,当前G被挂起，直到系统调用结束，才会重新让G进入Grunning状态</span>
+	<span class="token function">casgstatus</span><span class="token punctuation">(</span>_g_<span class="token punctuation">,</span> _Grunning<span class="token punctuation">,</span> _Gsyscall<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> _g_<span class="token punctuation">.</span>syscallsp <span class="token operator">&lt;</span> _g_<span class="token punctuation">.</span>stack<span class="token punctuation">.</span>lo <span class="token operator">||</span> _g_<span class="token punctuation">.</span>stack<span class="token punctuation">.</span>hi <span class="token operator">&lt;</span> _g_<span class="token punctuation">.</span>syscallsp <span class="token punctuation">&#123;</span>
+		<span class="token function">systemstack</span><span class="token punctuation">(</span><span class="token keyword">func</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+			<span class="token function">print</span><span class="token punctuation">(</span><span class="token string">"entersyscall inconsistent "</span><span class="token punctuation">,</span> <span class="token function">hex</span><span class="token punctuation">(</span>_g_<span class="token punctuation">.</span>syscallsp<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">" ["</span><span class="token punctuation">,</span> <span class="token function">hex</span><span class="token punctuation">(</span>_g_<span class="token punctuation">.</span>stack<span class="token punctuation">.</span>lo<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">","</span><span class="token punctuation">,</span> <span class="token function">hex</span><span class="token punctuation">(</span>_g_<span class="token punctuation">.</span>stack<span class="token punctuation">.</span>hi<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token string">"]\n"</span><span class="token punctuation">)</span>
+			<span class="token function">throw</span><span class="token punctuation">(</span><span class="token string">"entersyscall"</span><span class="token punctuation">)</span>
+		<span class="token punctuation">&#125;</span><span class="token punctuation">)</span>
+	<span class="token punctuation">&#125;</span>
+
+        <span class="token comment">// 捕获堆栈进行跟踪</span>
+	<span class="token keyword">if</span> trace<span class="token punctuation">.</span>enabled <span class="token punctuation">&#123;</span>
+		<span class="token function">systemstack</span><span class="token punctuation">(</span>traceGoSysCall<span class="token punctuation">)</span>
+		<span class="token function">save</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp<span class="token punctuation">)</span>
+	<span class="token punctuation">&#125;</span>
+
+        <span class="token comment">// 唤醒sysmon线程，对进行系统调用的P进行抢占</span>
+	<span class="token keyword">if</span> atomic<span class="token punctuation">.</span><span class="token function">Load</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>sched<span class="token punctuation">.</span>sysmonwait<span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token number">0</span> <span class="token punctuation">&#123;</span>
+		<span class="token function">systemstack</span><span class="token punctuation">(</span>entersyscall_sysmon<span class="token punctuation">)</span>
+		<span class="token function">save</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp<span class="token punctuation">)</span>
+	<span class="token punctuation">&#125;</span>
+
+	<span class="token keyword">if</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>runSafePointFn <span class="token operator">!=</span> <span class="token number">0</span> <span class="token punctuation">&#123;</span>
+		<span class="token comment">// runSafePointFn may stack split if run on this stack</span>
+		<span class="token function">systemstack</span><span class="token punctuation">(</span>runSafePointFn<span class="token punctuation">)</span>
+		<span class="token function">save</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp<span class="token punctuation">)</span>
+	<span class="token punctuation">&#125;</span>
+
+	_g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>syscalltick <span class="token operator">=</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>syscalltick
+	_g_<span class="token punctuation">.</span>sysblocktraced <span class="token operator">=</span> <span class="token boolean">true</span>
+
+        <span class="token comment">// P中去除M的引用，但是M还持有P的引用，方便系统调用返回之后优先选取原来的P</span>
+	pp <span class="token operator">:=</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+	pp<span class="token punctuation">.</span>m <span class="token operator">=</span> <span class="token number">0</span>
+	_g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>oldp<span class="token punctuation">.</span><span class="token function">set</span><span class="token punctuation">(</span>pp<span class="token punctuation">)</span>
+	_g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p <span class="token operator">=</span> <span class="token number">0</span>
+
+        <span class="token comment">// 变更当前P的状态</span>
+	atomic<span class="token punctuation">.</span><span class="token function">Store</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>pp<span class="token punctuation">.</span>status<span class="token punctuation">,</span> _Psyscall<span class="token punctuation">)</span>
+	<span class="token keyword">if</span> sched<span class="token punctuation">.</span>gcwaiting <span class="token operator">!=</span> <span class="token number">0</span> <span class="token punctuation">&#123;</span>
+		<span class="token function">systemstack</span><span class="token punctuation">(</span>entersyscall_gcwait<span class="token punctuation">)</span>
+		<span class="token function">save</span><span class="token punctuation">(</span>pc<span class="token punctuation">,</span> sp<span class="token punctuation">)</span>
+	<span class="token punctuation">&#125;</span>
+
+	_g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>locks<span class="token operator">--</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>上述方法主要是为系统调用前做准备工作：</p>
+<ol>
+<li>修改G状态为_Gsyscall</li>
+<li>唤醒sysmon线程，让其执行retake()抢占式调度阻塞的P</li>
+<li>修改P的状态</li>
+</ol>
+<div class="note note-info">
+            <p>当 P 处于 _Psyscall 状态时，表明对应的 goroutine 正在进行系统调用。如果抢占 p，需要满足几个条件：</p><ol><li>p 的本地运行队列里面有等待运行的 goroutine。这时 p 绑定的 g 正在进行系统调用，无法去执行其他的 g，因此需要接管 p 来执行其他的 g。</li><li>没有“无所事事”的 p。<code>sched.nmspinning</code> 和 <code>sched.npidle</code> 都为 0，这就意味着没有“找工作”的 m，也没有空闲的 p，大家都在“忙”，可能有很多工作要做。因此要抢占当前的 p，让它来承担一部分工作。</li><li>从上一次监控线程观察到 p 对应的 m 处于系统调用之中到现在已经超过 10 毫秒。这说明系统调用所花费的时间较长，需要对其进行抢占，以此来使得 <code>retake</code> 函数返回值不为 0，这样，会保持 sysmon 线程 20 us 的检查周期，提高 sysmon 监控的实时性。</li></ol>
+          </div>
+
+<h3 id="runtime-syscallexit"><a href="#runtime-syscallexit" class="headerlink" title="runtime.syscallexit"></a>runtime.syscallexit</h3><p>当系统调用返回的时候，会调用该方法恢复调度</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">exitsyscall</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+    _g_ <span class="token operator">:=</span> <span class="token function">getg</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>locks<span class="token operator">++</span>
+    <span class="token keyword">if</span> <span class="token function">getcallersp</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">></span> _g_<span class="token punctuation">.</span>syscallsp <span class="token punctuation">&#123;</span>
+        <span class="token function">throw</span><span class="token punctuation">(</span><span class="token string">"exitsyscall: syscall frame is no longer valid"</span><span class="token punctuation">)</span>
+    <span class="token punctuation">&#125;</span>
+
+    _g_<span class="token punctuation">.</span>waitsince <span class="token operator">=</span> <span class="token number">0</span>
+    oldp <span class="token operator">:=</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>oldp<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>oldp <span class="token operator">=</span> <span class="token number">0</span>
+     <span class="token comment">// 重新获取p</span>
+    <span class="token keyword">if</span> <span class="token function">exitsyscallfast</span><span class="token punctuation">(</span>oldp<span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+        <span class="token keyword">if</span> trace<span class="token punctuation">.</span>enabled <span class="token punctuation">&#123;</span>
+            <span class="token keyword">if</span> oldp <span class="token operator">!=</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token operator">||</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>syscalltick <span class="token operator">!=</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>syscalltick <span class="token punctuation">&#123;</span>
+                <span class="token function">systemstack</span><span class="token punctuation">(</span>traceGoStart<span class="token punctuation">)</span>
+            <span class="token punctuation">&#125;</span>
+        <span class="token punctuation">&#125;</span>
+        <span class="token comment">// There's a cpu for us, so we can run.</span>
+        _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>syscalltick<span class="token operator">++</span>
+        <span class="token comment">// We need to cas the status and scan before resuming...</span>
+        <span class="token function">casgstatus</span><span class="token punctuation">(</span>_g_<span class="token punctuation">,</span> _Gsyscall<span class="token punctuation">,</span> _Grunning<span class="token punctuation">)</span>
+
+        <span class="token comment">// Garbage collector isn't running (since we are),</span>
+        <span class="token comment">// so okay to clear syscallsp.</span>
+        _g_<span class="token punctuation">.</span>syscallsp <span class="token operator">=</span> <span class="token number">0</span>
+        _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>locks<span class="token operator">--</span>
+        <span class="token keyword">if</span> _g_<span class="token punctuation">.</span>preempt <span class="token punctuation">&#123;</span>
+            <span class="token comment">// restore the preemption request in case we've cleared it in newstack</span>
+            _g_<span class="token punctuation">.</span>stackguard0 <span class="token operator">=</span> stackPreempt
+        <span class="token punctuation">&#125;</span> <span class="token keyword">else</span> <span class="token punctuation">&#123;</span>
+            <span class="token comment">// otherwise restore the real _StackGuard, we've spoiled it in entersyscall/entersyscallblock</span>
+            _g_<span class="token punctuation">.</span>stackguard0 <span class="token operator">=</span> _g_<span class="token punctuation">.</span>stack<span class="token punctuation">.</span>lo <span class="token operator">+</span> _StackGuard
+        <span class="token punctuation">&#125;</span>
+        _g_<span class="token punctuation">.</span>throwsplit <span class="token operator">=</span> <span class="token boolean">false</span>
+
+        <span class="token keyword">if</span> sched<span class="token punctuation">.</span>disable<span class="token punctuation">.</span>user <span class="token operator">&amp;&amp;</span> <span class="token operator">!</span><span class="token function">schedEnabled</span><span class="token punctuation">(</span>_g_<span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+            <span class="token comment">// Scheduling of this goroutine is disabled.</span>
+            <span class="token function">Gosched</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">&#125;</span>
+
+        <span class="token keyword">return</span>
+    <span class="token punctuation">&#125;</span>
+
+    _g_<span class="token punctuation">.</span>sysexitticks <span class="token operator">=</span> <span class="token number">0</span>
+    <span class="token keyword">if</span> trace<span class="token punctuation">.</span>enabled <span class="token punctuation">&#123;</span>
+
+        <span class="token keyword">for</span> oldp <span class="token operator">!=</span> <span class="token boolean">nil</span> <span class="token operator">&amp;&amp;</span> oldp<span class="token punctuation">.</span>syscalltick <span class="token operator">==</span> _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>syscalltick <span class="token punctuation">&#123;</span>
+            <span class="token function">osyield</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+        <span class="token punctuation">&#125;</span>
+
+        _g_<span class="token punctuation">.</span>sysexitticks <span class="token operator">=</span> <span class="token function">cputicks</span><span class="token punctuation">(</span><span class="token punctuation">)</span>
+    <span class="token punctuation">&#125;</span>
+
+    _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>locks<span class="token operator">--</span>
+
+    <span class="token comment">// 没有获取到p，只能解绑当前g，重新调度该m了</span>
+    <span class="token function">mcall</span><span class="token punctuation">(</span>exitsyscall0<span class="token punctuation">)</span>
+
+    _g_<span class="token punctuation">.</span>syscallsp <span class="token operator">=</span> <span class="token number">0</span>
+    _g_<span class="token punctuation">.</span>m<span class="token punctuation">.</span>p<span class="token punctuation">.</span><span class="token function">ptr</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">.</span>syscalltick<span class="token operator">++</span>
+    _g_<span class="token punctuation">.</span>throwsplit <span class="token operator">=</span> <span class="token boolean">false</span>
+<span class="token punctuation">&#125;</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>其实这个过程就两个步骤：</p>
+<ol>
+<li>exitsyscallfast M尝试重新绑定P，如果之前的P被占用了，看下全局调度中有没有空闲的P，进行绑定，如果没有则进行下面一步</li>
+<li>exitsyscall0 M解绑关联的G，进入休眠状态，等待下次唤醒，G进入全局队列，等待P窃取</li>
+</ol>
+<h3 id="如何使用"><a href="#如何使用" class="headerlink" title="如何使用"></a>如何使用</h3><img src="/2022/07/27/golang%E4%B8%AD%E7%9A%84%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/x86_syscall.png" srcset="/img/loading.gif" lazyload class="" title="x86_syscall">
+
+<p>这是从<a target="_blank" rel="noopener" href="https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#x86_64-64_bit">Chromium OS Docs</a> 截取的部分系统调用指令表</p>
+<p>实际上这部分指令可以在<a target="_blank" rel="noopener" href="https://cs.opensource.google/go/x/sys/+/master:unix/zsysnum_linux_amd64.go;l=1?q=sysnum_linux_amd&sq=">zsysnum_linux_amd64.go</a>中看到：</p>
+<img src="/2022/07/27/golang%E4%B8%AD%E7%9A%84%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/golang_syscall_trap.png" srcset="/img/loading.gif" lazyload class="" title="golang_syscall_trap">
+
+<p>当然，部分指令已经暴露接口给用户程序了，部分未实现的则可以直接使用Syscall或者RawSyscall调用</p>
+<h2 id="一些可以使用的点"><a href="#一些可以使用的点" class="headerlink" title="一些可以使用的点"></a>一些可以使用的点</h2><h3 id="调用自己编译的系统调用"><a href="#调用自己编译的系统调用" class="headerlink" title="调用自己编译的系统调用"></a>调用自己编译的系统调用</h3><p>这个需要实现系统调用，通过编译内核的方式或者使用插入模块的方式使之生效，然后使用API调用。可以参考一下<a target="_blank" rel="noopener" href="https://www.kernel.org/doc/html/v4.10/process/adding-syscalls.html#compatibility-system-calls-x86">如何添加新的系统调用</a>以及<a target="_blank" rel="noopener" href="https://developer.aliyun.com/article/364575">实现自己的系统调用</a></p>
+<h3 id="禁用一些非法的系统调用或者添加一些系统调用的日志"><a href="#禁用一些非法的系统调用或者添加一些系统调用的日志" class="headerlink" title="禁用一些非法的系统调用或者添加一些系统调用的日志"></a>禁用一些非法的系统调用或者添加一些系统调用的日志</h3><p>微服务场景下常见的一种保护措施，例如docker就提供了<a target="_blank" rel="noopener" href="https://kubernetes.io/docs/tutorials/security/seccomp/">seccomp</a>来限制一些容器的系统调用。当然，我们自己也可以使用类似的第三方包<a target="_blank" rel="noopener" href="https://github.com/seccomp/libseccomp-golang">libseccomp-golang</a>来做一些自定义操作。</p>
+<h3 id="调用一些未暴露的系统调用"><a href="#调用一些未暴露的系统调用" class="headerlink" title="调用一些未暴露的系统调用"></a>调用一些未暴露的系统调用</h3><p>例如共享内存的操作就没有暴露给用户，可以通过自己调用Syscall做实现，参考实现：<a target="_blank" rel="noopener" href="https://github.com/gen2brain/shm/blob/master/shm.go">shm.go</a></p>
+<p>go:linkname的使用</p>
+<p>在runtime里面发现了很多go:linkname的使用，例如 syscall.Exit 实现就如下：</p>
+<p>在文件：syscall&#x2F;syscall.go中，只有方法签名</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token keyword">func</span> <span class="token function">Exit</span><span class="token punctuation">(</span>code <span class="token builtin">int</span><span class="token punctuation">)</span><span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></div></figure>
+
+<p>而在文件: runtime&#x2F;runtime.go中，就通过linkname关联了实现：</p>
+<figure><div class="code-wrapper"><pre class="line-numbers language-go" data-language="go"><code class="language-go"><span class="token comment">//go:linkname syscall_Exit syscall.Exit</span>
+<span class="token comment">//go:nosplit</span>
+<span class="token keyword">func</span> <span class="token function">syscall_Exit</span><span class="token punctuation">(</span>code <span class="token builtin">int</span><span class="token punctuation">)</span> <span class="token punctuation">&#123;</span>
+	<span class="token function">exit</span><span class="token punctuation">(</span><span class="token function">int32</span><span class="token punctuation">(</span>code<span class="token punctuation">)</span><span class="token punctuation">)</span>
+<span class="token punctuation">&#125;</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
+
+<p>查阅<a target="_blank" rel="noopener" href="https://pkg.go.dev/cmd/compile">官方文档</a>有如下发现：</p>
+<blockquote>
+<p>&#x2F;&#x2F;go:linkname localname [importpath.name]</p>
+<p>This special directive does not apply to the Go code that follows it. Instead, the &#x2F;&#x2F;go:linkname directive instructs the compiler to use “<a target="_blank" rel="noopener" href="http://importpath.name/">importpath.name</a>” as the object file symbol name for the variable or function declared as “localname” in the source code. If the “<a target="_blank" rel="noopener" href="http://importpath.name/">importpath.name</a>” argument is omitted, the directive uses the symbol’s default object file symbol name and only has the effect of making the symbol accessible to other packages. Because this directive can subvert the type system and package modularity, it is only enabled in files that have imported “unsafe”.</p>
+</blockquote>
+<p>通过这种方式，我们可以突破go包的一些访问限制，将一些私有的变量或者函数导出到本地来。具体使用方法可以参考：<a target="_blank" rel="noopener" href="https://sitano.github.io/2016/04/28/golang-private/">How to call private functions (bind to hidden symbols) in GoLang</a></p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>[1] <a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000019375999">曹春晖：谈一谈 Go 和 Syscall</a></p>
+<p>[2] <a target="_blank" rel="noopener" href="https://segmentfault.com/a/1190000039855617">golang调度学习-调度流程 (五) Syscall</a></p>
+<p>[3] <a target="_blank" rel="noopener" href="https://golang.design/under-the-hood/zh-cn/part2runtime/ch06sched/preemption/">go协作与抢占</a></p>
+<p>[4] <a target="_blank" rel="noopener" href="https://go.xargin.com/docs/assembly/assembly/">Plan9汇编解析</a></p>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/%E6%8A%80%E6%9C%AF%E6%96%87%E7%AB%A0/" class="category-chain-item">技术文章</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+    <div class="post-meta">
+      <i class="iconfont icon-tags"></i>
+      
+        <a href="/tags/golang/">#golang</a>
+      
+        <a href="/tags/syscall/">#syscall</a>
+      
+    </div>
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>golang中的系统调用</div>
+      <div>https://fibbery.github.io/2022/07/27/golang中的系统调用/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>Fibbery</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2022年7月27日</div>
+        </div>
+      
+      
+      <div class="license-meta-item">
+        <div>许可协议</div>
+        <div>
+          
+            
+            
+              <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+              <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                <i class="iconfont icon-by"></i>
+              </span>
+              </a>
+            
+          
+        </div>
+      </div>
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2023/10/31/CIDR%E5%9C%B0%E5%9D%80%E8%8C%83%E5%9B%B4%E8%AE%A1%E7%AE%97/" title="CIDR地址范围计算">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">CIDR地址范围计算</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  <article id="comments" lazyload>
+    
+  <div id="valine"></div>
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#valine', function() {
+      Fluid.utils.createScript('https://lib.baomitu.com/valine/1.4.17/Valine.min.js', function() {
+        var options = Object.assign(
+          {"appId":"wVgtrusWKN9yXNu0xlLtvwV1-gzGzoHsz","appKey":"YmrhWjeQyjbw3KSkpOujDj9q","path":"window.location.pathname","placeholder":null,"avatar":"retro","meta":["nick","mail","link"],"requiredFields":[],"pageSize":10,"lang":"zh-CN","highlight":false,"recordIP":false,"serverURLs":"","emojiCDN":null,"emojiMaps":null,"enableQQ":false},
+          {
+            el: "#valine",
+            path: window.location.pathname
+          }
+        )
+        new Valine(options);
+        Fluid.utils.waitElementVisible('#valine .vcontent', () => {
+          var imgSelector = '#valine .vcontent img:not(.vemoji)';
+          Fluid.plugins.imageCaption(imgSelector);
+          Fluid.plugins.fancyBox(imgSelector);
+        })
+      });
+    });
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+  </article>
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+    <div class="statistics">
+  
+  
+
+  
+    
+      <span id="busuanzi_container_site_pv" style="display: none">
+        总访问量 
+        <span id="busuanzi_value_site_pv"></span>
+         次
+      </span>
+    
+    
+      <span id="busuanzi_container_site_uv" style="display: none">
+        总访客数 
+        <span id="busuanzi_value_site_uv"></span>
+         人
+      </span>
+    
+    
+  
+</div>
+
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      headingSelector : CONFIG.toc.headingSelector || 'h1,h2,h3,h4,h5,h6',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      collapseDepth   : CONFIG.toc.collapseDepth || 0,
+      scrollSmooth    : true,
+      headingsOffset  : -boardTop
+    });
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+  });
+</script>
+
+
+  <script  src="https://lib.baomitu.com/prism/1.27.0/plugins/line-numbers/prism-line-numbers.min.js" ></script>
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.10/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>
